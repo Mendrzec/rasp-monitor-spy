@@ -100,19 +100,15 @@ class Event:
     PRECISION = 2  # digits after decimal point
 
     TYPE_MACHINE_ON_OFF = 'MACHINE_ON_OFF'
-    TYPE_CARD_IN_OUT = 'CARD_IN_OUT'
     TYPE_CYCLES_COUNT = 'CYCLES_COUNT'
     TYPE_CYCLES_COUNT_LATCH = 'CYCLES_COUNT_LATCH'
     TYPE_CYCLES_PER_MINUTE = 'CYCLES_PER_MINUTE'
     TYPE_CYCLES_PER_MINUTE_LATCH = 'CYCLES_PER_MINUTE_LATCH'
 
-    VALUE_CARD_IN = 1
-    VALUE_CARD_OUT = 0
-
     def __init__(self, type_, value):
         self.type = type_
         self.value = str(round(value, Event.PRECISION))
-        self.timestamp = time.strftime(DATE_FORMAT)
+        self.timestamp = time.strftime(DATE_FORMAT, time.gmtime())
 
     def to_dict(self):
         return {
@@ -150,6 +146,7 @@ class Stat:
         stat['card_id'] = self.card_id
         stat['events'] = [event.to_dict() for event in self.events]
         stat['machine'] = self.machine.to_dict()
+        stat['timestamp'] = time.strftime(DATE_FORMAT, time.gmtime())
         self.events.clear()
         self._lock.release()
         return stat

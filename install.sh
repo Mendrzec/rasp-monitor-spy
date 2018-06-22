@@ -1,15 +1,48 @@
-#!/bin/sh
-apt-get update -y
-apt-get dist-upgrade -y
+#!/bin/bash
 
-git clone https://github.com/lthiery/SPI-Py.git
-cd SPI-Py
-python3 setup.py install
-cd ../
-rm SPI-Py -rf
+. setup_files/common/functions.sh
+. setup_files/common/variables.sh
 
-pip3 install psutil
+function installSpiPy {
+    cd setup_files/vendor/SPI-Py
+    ${PYTHON} setup.py install
+    cd ../../../
+    # rm setup_files/vendor/SPI-Py -rf
+}
 
-# TODO: whether rasp monitor is running as root or not apropriate permissions must be set for dirs
-mkdir logs
-mkdir stats_not_sent
+checkIfSudo
+checkIfAlreadyInstalled
+
+# requirements
+PYTHON_AND_PIP_COMMAND=$(getPythonAndPipCommand)
+PYTHON=$(cut -d ' ' -f 1 <<< ${PYTHON_AND_PIP_COMMAND})
+PIP=$(cut -d ' ' -f 2 <<< ${PYTHON_AND_PIP_COMMAND})
+
+# dependencies
+#apt-get update -y
+#apt-get dist-upgrade -y
+
+installSpiPy
+${PIP} install psutil
+
+# make dirs and copy files
+makeDir ${RASP_ROOT_DIR}
+makeDir ${LOGS_DIR}
+makeDir ${NOT_SENT_DIR}
+
+# spy dir and raspmonitor.sh -> /opt/raspmonitor
+cp -rv "raspmonitor/"* ${RASP_ROOT_DIR}
+#chmod -R 775 ${RASP_ROOT_DIR}
+#chown -R pi:pi ${RASP_ROOT_DIR}
+
+# uninstall.sh -> /opt/raspmonitor
+cp -rv "setup_files/uninstall.sh" ${RASP_ROOT_DIR}
+
+# launcher.sh -> /opt/raspmonitor
+cp -rv "setup_files/launcher.sh" ${RASP_ROOT_DIR}
+
+# autostart
+cp -v "setup_files/raspmonitor.service" /etc/systemd/system/
+sed -i "s/\${PYTHON}/${PYTHON}/" ${ETC_SERVICE_FILE}
+
+#exec /bin/sh ${LAUNCHER_FILE}

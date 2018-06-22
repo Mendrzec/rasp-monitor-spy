@@ -30,7 +30,7 @@ class Postman(PostmanFileHelper):
         while self._queue:
             data = self._queue.pop()
             if not server_unreachable:
-                code, error = self._post_data("stats/", data)
+                code, error = self._post_data("api/stats/", data)
                 if isinstance(error, requests.Timeout):
                     log.error("Server is not reachable. Omitting future POSTs from this send_data call "
                               "and storing data locally")
@@ -57,8 +57,8 @@ class Postman(PostmanFileHelper):
             try:
                 response = requests.post(self.server_url+url, json=data, headers=Postman.HEADERS, timeout=5)
                 if response.status_code != 201:
-                    log.error("Server respond with code: {}, and message: {}"
-                              .format(response.status_code, response.json()))
+                    log.error("Server respond with code: {}".format(response.status_code))
+                    log.debug("Server error message: {}".format(response.text))
                 else:
                     log.debug("Data sent successfully!")
                 return response.status_code, None

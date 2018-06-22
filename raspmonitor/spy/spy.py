@@ -8,7 +8,6 @@
 #
 # short interval:
 #   - card reading
-#   - machine start/stop
 #   - cycles counting
 #
 # long interval:
@@ -75,8 +74,6 @@ class Spy:
         GPIO.setup(CYCLES_COUNTER_IN, GPIO.IN)
         GPIO.setup(CYCLES_COUNTER_LATCH_IN, GPIO.IN)
 
-        GPIO.setup(CARD_IN_LED_OUT, GPIO.OUT)
-        GPIO.output(CARD_IN_LED_OUT, GPIO.LOW)
         GPIO.setup(CYCLES_COUNTING_LED_OUT, GPIO.OUT)
         GPIO.output(CYCLES_COUNTING_LED_OUT, GPIO.LOW)
 
@@ -87,6 +84,7 @@ class Spy:
 
     def _initialize_stop_strategy(self):
         signal.signal(signal.SIGINT, self._stop_and_clean_callback)
+        signal.signal(signal.SIGTERM, self._stop_and_clean_callback)
 
     def _stop_and_clean_callback(self, signum, frame):
         log.info("Caught shutdown signal ({}), exiting...".format(signum))
@@ -130,12 +128,10 @@ class Spy:
 
     def _fresh_stat(self, card_id):
         self._add_events_bundle()
-        self._stat.add_event(Event.TYPE_CARD_IN_OUT, Event.VALUE_CARD_OUT)
         self._postman.safe_queue_append(self._stat.dump_and_clean().copy())
 
         self._reset_local_stats()
         self._stat = Stat(card_id)
-        self._stat.add_event(Event.TYPE_CARD_IN_OUT, Event.VALUE_CARD_IN)
 
     def _compute_cycles_per_minute(self, current_time, cpm_compute_time_stamp):
         self._cycles_count_lock.acquire()

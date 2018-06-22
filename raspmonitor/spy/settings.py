@@ -1,6 +1,6 @@
 import time
 
-DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 
 SERVER_URL = "http://192.168.0.165:8000/"
 
@@ -8,7 +8,7 @@ STATS_NOT_SENT_DIR = "stats_not_sent/"
 STATS_NOT_SENT_FILE_NAME = STATS_NOT_SENT_DIR + "stats.json"
 
 LOG_DIR = "logs/"
-LOG_FILE_NAME = LOG_DIR + "rasp_monitor_spy_{}.log"
+LOG_FILE_NAME = LOG_DIR + "raspmonitor_spy_{}.log"
 LOG_FILE_MAX_SIZE = 10*1024*1024
 LOG_FILES_COUNT = 5
 LOG_LOGGER_NAME = 'rasp_monitor'

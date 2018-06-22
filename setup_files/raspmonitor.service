@@ -1,0 +1,12 @@
+[Unit]
+Description=Raspmonitor
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/raspmonitor/
+ExecStart=/usr/bin/env ${PYTHON} /opt/raspmonitor/raspmonitor.py
+
+[Install]
+WantedBy=multi-user.target
