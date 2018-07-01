@@ -7,7 +7,6 @@
 #           |   \_ ...
 #           |_setup
 #           |   \_uninstall.sh
-#           |_ launcher.sh
 #           |_ raspmonitor.py
 
 readonly TRUE=0

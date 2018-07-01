@@ -11,7 +11,7 @@ log = logging.getLogger(LOG_LOGGER_NAME)
 
 class Postman(PostmanFileHelper):
     MAX_RETRIES = 3
-    MAX_STATS_FROM_FILE = 10
+    MAX_STATS_FROM_FILE = 25
     HEADERS = {'Content-type': 'application/json'}
 
     def __init__(self, stat_instance=None, server_url=SERVER_URL, base_file_path=STATS_NOT_SENT_FILE_NAME):
