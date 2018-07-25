@@ -42,6 +42,7 @@ chmod 775 "${RASP_ROOT_DIR}/uninstall.sh"
 cp -v "setup_files/raspmonitor.service" /etc/systemd/system/
 sed -i "s/\${PYTHON}/${PYTHON}/" ${ETC_SERVICE_FILE}
 
+systemctl enable raspmonitor.service
 systemctl start raspmonitor.service
 systemctl daemon-reload
 systemctl status raspmonitor.service

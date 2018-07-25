@@ -40,7 +40,7 @@ class Spy:
     STATS_SAMPLING_INTERVAL = 60.0  # seconds
     FAST_LOOP_INTERVAL = 0.2  # seconds
     CARD_TIME_OUT = 5.0  # seconds
-    BOUNCE_TIME = 75  # miliseconds
+    CYCLES_IN_BOUNCE_TIME = 75  # miliseconds
     SIXTY_SECONDS = 60  # seconds
 
     def __init__(self):
@@ -77,10 +77,8 @@ class Spy:
         GPIO.setup(CYCLES_COUNTING_LED_OUT, GPIO.OUT)
         GPIO.output(CYCLES_COUNTING_LED_OUT, GPIO.LOW)
 
-        GPIO.add_event_detect(MACHINE_ON_IN, GPIO.BOTH, callback=self._machine_start_stop_callback,
-                              bouncetime=Spy.BOUNCE_TIME)
         GPIO.add_event_detect(CYCLES_COUNTER_IN, GPIO.FALLING, callback=self._machine_cycles_counter_callback,
-                              bouncetime=Spy.BOUNCE_TIME)
+                              bouncetime=Spy.CYCLES_IN_BOUNCE_TIME)
 
     def _initialize_stop_strategy(self):
         signal.signal(signal.SIGINT, self._stop_and_clean_callback)
@@ -94,14 +92,8 @@ class Spy:
         self._should_slow_loop = False
         GPIO.cleanup()
 
-    def _machine_start_stop_callback(self, channel):
-        time.sleep(Spy.BOUNCE_TIME/1000)
-        self._machine_on_off = get_input_state(MACHINE_ON_IN)
-        self._stat.add_event(Event.TYPE_MACHINE_ON_OFF, self._machine_on_off)
-        log.debug("Captured machine_on_off event. Value: {}".format(self._machine_on_off))
-
     def _machine_cycles_counter_callback(self, channel):
-        time.sleep(Spy.BOUNCE_TIME/1000)
+        time.sleep(Spy.CYCLES_IN_BOUNCE_TIME/1000.0)
         if get_input_state(CYCLES_COUNTER_IN):
             self._cycles_count_lock.acquire()
             self._cycles_count += 1
@@ -148,7 +140,7 @@ class Spy:
         log.debug("Cycles per minute latch: {}".format(self._cycles_per_minute_latch))
         self._cycles_count_lock.release()
 
-    def _read_card(self):
+    def _fast_loop(self):
         card_read_time_stamp = self._get_current_time()
         while self._should_fast_loop:
             time.sleep(Spy.FAST_LOOP_INTERVAL)
@@ -177,8 +169,16 @@ class Spy:
         stats_sent_time_stamp = current_time
 
         stats_send_thread = None
+        previous_machine_on_off = None
 
         while self._should_slow_loop:
+            # machine state detection
+            self._machine_on_off = get_input_state(MACHINE_ON_IN)
+            if self._machine_on_off != previous_machine_on_off:
+                self._stat.add_event(Event.TYPE_MACHINE_ON_OFF, self._machine_on_off)
+                previous_machine_on_off = self._machine_on_off
+                log.debug("Captured machine_on_off event. Value: {}".format(self._machine_on_off))
+
             # compute cycles per minute and add stats to queue
             # - adjust the STATS_TO_QUEUE_INTERVAL to set stats resolution
             current_time = self._get_current_time()
@@ -207,7 +207,7 @@ class Spy:
             time.sleep(Spy.SLOW_LOOP_INTERVAL)
 
     def launch(self):
-        fast_loop_thread = threading.Thread(target=self._read_card)
+        fast_loop_thread = threading.Thread(target=self._fast_loop)
         slow_loop_thread = threading.Thread(target=self._slow_loop)
 
         fast_loop_thread.start()
