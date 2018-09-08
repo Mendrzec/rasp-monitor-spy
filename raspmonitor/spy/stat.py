@@ -23,7 +23,7 @@ log = logging.getLogger(LOG_LOGGER_NAME)
 
 class Machine:
     __instance = None
-    __init_done = False
+    __init_complete = False
 
     DEFAULT_INTERFACE = "eth0"
 
@@ -33,14 +33,13 @@ class Machine:
         return cls.__instance
 
     def __init__(self, interface_name=DEFAULT_INTERFACE):
-        if not Machine.__init_done:
-            Machine.__init_done = True
-
+        if not Machine.__init_complete:
             self.name = Machine._get_host_name()
-            ip, mac = Machine._get_host_ip_and_mac(interface_name)
+            ip = Machine._get_host_ip_and_mac(interface_name)
             self.ip = ip if ip else "NO_IP"
-            self.mac = mac if mac else "NO_MAC"
             self.hash = self._create_hash()
+            if self.ip != "NO_IP":
+                Machine.__init_complete = True
 
     @staticmethod
     def _get_host_name():
@@ -52,41 +51,41 @@ class Machine:
         interfaces = psutil.net_if_addrs()
 
         interface = interfaces.get(interface_name, None)
-        ip, mac = Machine._get_interface_ip_and_mac(interface)
-        if ip and mac:
-            return ip, mac
+        ip = Machine._get_interface_ip(interface)
+        if ip:
+            return ip
 
         s = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
+        try:
+            s.connect(("8.8.8.8", 80))
+        except OSError as e:
+            log.debug("Could not determine ip by pinging 8.8.8.8. Exception: {}".format(e))
+            return None
+
         ip = s.getsockname()[0]
         for interface in interfaces.values():
             filtered = filter(lambda _snic: _snic.family == socket.AF_INET and _snic.address == ip, interface)
             if next(filtered, None):
-                ip, mac = Machine._get_interface_ip_and_mac(interface)
-                if ip and mac:
-                    return ip, mac
+                ip = Machine._get_interface_ip(interface)
+                if ip:
+                    return ip
 
-        return None, None
+        return None
 
     @staticmethod
-    def _get_interface_ip_and_mac(interface):
-        mac = None
+    def _get_interface_ip(interface):
         ip = None
         if interface:
             for snic in interface:
-                if snic.family == psutil.AF_LINK:
-                    mac = snic.address
-                elif snic.family == socket.AF_INET:
+                if snic.family == socket.AF_INET:
                     ip = snic.address
-
-            log.debug("Host ip and mac is: {}, {}".format(ip, mac))
-            if ip and mac:
-                return ip, mac
-        return None, None
+            log.debug("Host ip is: {}".format(ip))
+            if ip:
+                return ip
+        return None
 
     def _create_hash(self):
-        sequence = self.mac + self.name
-        return hashlib.sha1(bytes(sequence, 'utf-8')).hexdigest()
+        return hashlib.sha1(bytes(self.name, 'utf-8')).hexdigest()
 
     def to_dict(self):
         return {

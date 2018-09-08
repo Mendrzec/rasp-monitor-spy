@@ -88,7 +88,6 @@ sed -i "s/\${PYTHON}/${PYTHON}/" ${ETC_SERVICE_FILE}
 
 echo "### Starting raspmonitor..."
 systemctl enable raspmonitor.service
-systemctl start raspmonitor.service
 systemctl daemon-reload
 systemctl status raspmonitor.service
 
