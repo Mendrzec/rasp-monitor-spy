@@ -18,15 +18,17 @@
 
 from spy.MFRC522 import MFRC522
 from spy.settings import MACHINE_ON_IN, CYCLES_COUNTER_IN, CYCLES_COUNTER_LATCH_IN, CARD_IN_LED_OUT, \
-    CYCLES_COUNTING_LED_OUT, LOG_LOGGER_NAME
+    CYCLES_COUNTING_LED_OUT, LOG_LOGGER_NAME, IDENTIFICATION_PORT
 from spy.postman import Postman
 from spy.stat import Stat, Event
 from spy.utils import parse_card_id, get_input_state
 
+from http.server import SimpleHTTPRequestHandler
 
 import logging.config
 import RPi.GPIO as GPIO
 import signal
+import socketserver
 import threading
 import time
 
@@ -63,6 +65,11 @@ class Spy:
         self._should_fast_loop = True
         self._should_slow_loop = True
 
+        # Sets up simple http server with port 30330
+        # It may help to identify if service is running and to find available raspomnitors in a network
+        # In the future may be useful to change to show things or edit config through web browser
+        self.http_identification_server = socketserver.TCPServer(("", IDENTIFICATION_PORT), SimpleHTTPRequestHandler)
+
         self._initialize_gpio()
         self._initialize_stop_strategy()
 
@@ -88,8 +95,11 @@ class Spy:
         log.info("Caught shutdown signal ({}), exiting...".format(signum))
         GPIO.remove_event_detect(MACHINE_ON_IN)
         GPIO.remove_event_detect(CYCLES_COUNTER_IN)
+
         self._should_fast_loop = False
         self._should_slow_loop = False
+        self.http_identification_server.shutdown()
+
         GPIO.cleanup()
 
     def _machine_cycles_counter_callback(self, channel):
@@ -209,9 +219,12 @@ class Spy:
     def launch(self):
         fast_loop_thread = threading.Thread(target=self._fast_loop)
         slow_loop_thread = threading.Thread(target=self._slow_loop)
+        http_identification_server_thread = threading.Thread(target=self.http_identification_server.serve_forever)
 
         fast_loop_thread.start()
         slow_loop_thread.start()
+        http_identification_server_thread.start()
 
         fast_loop_thread.join()
         slow_loop_thread.join()
+        http_identification_server_thread.join()
