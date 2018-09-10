@@ -44,19 +44,20 @@ sed -i "s/#dtparam=spi=on/dtparam=spi=on/" /boot/config.txt
 echo "### Setting timezone..."
 sudo cp /usr/share/zoneinfo/Poland /etc/localtime
 
+# dependencies
+apt-get update -y
+apt-get install python3-dev python3-pip python3-rpi.gpio -y
+
 # requirements
 echo "### Looking for Python version..."
 PYTHON_AND_PIP_COMMAND=$(getPythonAndPipCommand)
 PYTHON=$(cut -d ' ' -f 1 <<< ${PYTHON_AND_PIP_COMMAND})
 PIP=$(cut -d ' ' -f 2 <<< ${PYTHON_AND_PIP_COMMAND})
 
-# dependencies
-apt-get update -y
-#apt-get dist-upgrade -y
-
 echo "### Installing SpiPy library..."
 installSpiPy
 ${PIP} install psutil
+${PIP} install requests
 
 # set host name
 echo "### Setting new hostname..."
