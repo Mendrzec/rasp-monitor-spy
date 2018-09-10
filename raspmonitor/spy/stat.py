@@ -1,4 +1,5 @@
 from spy.settings import DATE_FORMAT, LOG_LOGGER_NAME
+from spy.utils import DeviceStatusIndicator, DeviceStatus
 from threading import Lock
 
 import logging
@@ -19,6 +20,7 @@ STAT_TEMPLATE = {
 }
 
 log = logging.getLogger(LOG_LOGGER_NAME)
+ds_indicator = DeviceStatusIndicator()
 
 
 class Machine:
@@ -35,7 +37,7 @@ class Machine:
     def __init__(self, interface_name=DEFAULT_INTERFACE):
         if not Machine.__init_complete:
             self.name = Machine._get_host_name()
-            ip = Machine._get_host_ip_and_mac(interface_name)
+            ip = Machine._get_host_ip(interface_name)
             self.ip = ip if ip else "NO_IP"
             self.hash = self._create_hash()
             if self.ip != "NO_IP":
@@ -47,7 +49,7 @@ class Machine:
         return hostname if hostname else "UNKNOWN_HOSTNAME"
 
     @staticmethod
-    def _get_host_ip_and_mac(interface_name):
+    def _get_host_ip(interface_name):
         interfaces = psutil.net_if_addrs()
 
         interface = interfaces.get(interface_name, None)
@@ -58,8 +60,10 @@ class Machine:
         s = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         try:
             s.connect(("8.8.8.8", 80))
+            ds_indicator.safe_reset(Machine._get_host_ip.__qualname__, DeviceStatus.LOW_SEVERITY_MALFUNCTION)
         except OSError as e:
-            log.debug("Could not determine ip by pinging 8.8.8.8. Exception: {}".format(e))
+            log.warning("Could not determine ip by pinging 8.8.8.8. Exception: {}".format(e))
+            ds_indicator.safe_indicate(Machine._get_host_ip.__qualname__, DeviceStatus.LOW_SEVERITY_MALFUNCTION)
             return None
 
         ip = s.getsockname()[0]
@@ -129,9 +133,7 @@ class Stat:
 
     def __init__(self, card_id=CARD_ID_NONE):
         self.card_id = card_id
-        self.machine = Machine()
         self.events = []
-
         self._lock = Lock()
 
     def add_event(self, type_, value):
@@ -144,7 +146,7 @@ class Stat:
         stat = {}
         stat['card_id'] = self.card_id
         stat['events'] = [event.to_dict() for event in self.events]
-        stat['machine'] = self.machine.to_dict()
+        stat['machine'] = Machine().to_dict()
         stat['timestamp'] = time.strftime(DATE_FORMAT, time.gmtime())
         self.events.clear()
         self._lock.release()

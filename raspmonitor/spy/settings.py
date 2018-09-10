@@ -2,7 +2,7 @@ import time
 
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 
-SERVER_URL = "http://192.168.0.165:8000/"
+SERVER_URL = ""
 
 STATS_NOT_SENT_DIR = "stats_not_sent/"
 STATS_NOT_SENT_FILE_NAME = STATS_NOT_SENT_DIR + "stats.json"
@@ -54,6 +54,6 @@ CYCLES_COUNTER_LATCH_IN = 35  # 19
 ADDITIONAL_IN_0 = 36
 ADDITIONAL_IN_1 = 33
 
-CARD_IN_LED_OUT = 32  # turn on to show user is properly loged in
-CYCLES_COUNTING_LED_OUT = 29  # turn on to show each cycles is captured
+DEVICE_STATUS_LED_OUT = 29  # turn on to show user is properly loged in
+CARD_CYCLES_STATUS_LED_OUT = 32  # turn on to show each cycles is captured
 ADDITIONAL_OUT_0 = 31

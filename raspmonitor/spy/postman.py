@@ -1,5 +1,6 @@
 from spy.settings import LOG_LOGGER_NAME, STATS_NOT_SENT_FILE_NAME, SERVER_URL
 from spy.postman_filehelper import PostmanFileHelper
+from spy.utils import DeviceStatusIndicator, DeviceStatus
 from threading import Lock
 
 import logging
@@ -7,6 +8,7 @@ import requests
 
 
 log = logging.getLogger(LOG_LOGGER_NAME)
+ds_indicator = DeviceStatusIndicator()
 
 
 class Postman(PostmanFileHelper):
@@ -14,9 +16,8 @@ class Postman(PostmanFileHelper):
     MAX_STATS_FROM_FILE = 25
     HEADERS = {'Content-type': 'application/json'}
 
-    def __init__(self, stat_instance=None, server_url=SERVER_URL, base_file_path=STATS_NOT_SENT_FILE_NAME):
+    def __init__(self, server_url=SERVER_URL, base_file_path=STATS_NOT_SENT_FILE_NAME):
         super(Postman, self).__init__(base_file_path)
-        self.stat = stat_instance
         self.server_url = server_url
 
         self._lock = Lock()
@@ -55,16 +56,21 @@ class Postman(PostmanFileHelper):
         while retries > 0:
             retries -= 1
             try:
+                ds_indicator.safe_reset(self._post_data.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
                 response = requests.post(self.server_url+url, json=data, headers=Postman.HEADERS, timeout=5)
+                ds_indicator.safe_reset(self._post_data.__qualname__, DeviceStatus.LOW_SEVERITY_MALFUNCTION)
                 if response.status_code != 201:
                     log.error("Server respond with code: {}".format(response.status_code))
                     log.debug("Server error message: {}".format(response.text))
+                    ds_indicator.safe_indicate(self._post_data.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
                 else:
                     log.debug("Data sent successfully!")
+
                 return response.status_code, None
 
             except requests.RequestException as e:
                 error = e
                 log.warning("Request exception occurred. Trying {} more times. Exception: {}"
                             .format(retries+1, e))
+                ds_indicator.safe_indicate(self._post_data.__qualname__, DeviceStatus.LOW_SEVERITY_MALFUNCTION)
         return None, error

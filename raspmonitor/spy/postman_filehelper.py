@@ -1,5 +1,5 @@
 from spy.settings import LOG_CONFIG, LOG_LOGGER_NAME
-
+from spy.utils import DeviceStatusIndicator, DeviceStatus
 import json
 import logging.config
 import os
@@ -7,6 +7,7 @@ import os
 
 logging.config.dictConfig(LOG_CONFIG)
 log = logging.getLogger(LOG_LOGGER_NAME)
+ds_indicator = DeviceStatusIndicator()
 
 
 class PostmanFileHelper:
@@ -42,7 +43,7 @@ class PostmanFileHelper:
         # CREATE NEW if no previous file
         if not existing_files:
             fresh_file_path = self._regenerate_file_path(str(1))
-            log.debug("Not found any previous files. Creating new one: '{}'".format(fresh_file_path))
+            log.info("Not found any previous files. Creating new one: '{}'".format(fresh_file_path))
             self._append_write_to_file(data, fresh_file_path)
             return
 
@@ -57,7 +58,7 @@ class PostmanFileHelper:
 
         # CREATE NEW if not enough space
         fresh_file_path = self._regenerate_file_path(str(int(latest_file_index)+1))
-        log.debug("File '{}' is full, creating new one '{}'".format(latest_file_path, fresh_file_path))
+        log.info("File '{}' is full, creating new one '{}'".format(latest_file_path, fresh_file_path))
         self._append_write_to_file(data, fresh_file_path)
 
     def _pop_data_from_oldest_file(self, count):
@@ -71,8 +72,10 @@ class PostmanFileHelper:
         if not isinstance(not_sent_data, list):
             log.error("Previous data from file '{}' are not a list. Cannot add to send queue!"
                       .format(oldest_file_path))
+            ds_indicator.safe_indicate(PostmanFileHelper._pop_data_from_oldest_file.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
             # TODO: Handle reading from next files if opened one is corrupted
             return []
+        ds_indicator.safe_reset(PostmanFileHelper._pop_data_from_oldest_file.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
 
         # pop some stats and save rest
         result = not_sent_data[-count:]
@@ -91,7 +94,9 @@ class PostmanFileHelper:
         data_to_write = previous_data if previous_data is not None else []
         if not isinstance(data_to_write, list):
             log.error("Previous data are not a list, cannot append!")
+            ds_indicator.safe_indicate(PostmanFileHelper._append_write_to_file.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
             return
+        ds_indicator.safe_reset(PostmanFileHelper._append_write_to_file.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
 
         if isinstance(data, list):
             data_to_write += data
@@ -108,8 +113,10 @@ class PostmanFileHelper:
         try:
             file = open(file_name, mode="w", newline="\n")
             file.write(data)
+            ds_indicator.safe_reset(PostmanFileHelper.safe_write.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
         except IOError:
             log.error("Could not open file: '{}'. Exception traceback: ".format(file_name), exc_info=True)
+            ds_indicator.safe_indicate(PostmanFileHelper.safe_write.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
 
         if file is not None:
             file.close()
@@ -121,10 +128,13 @@ class PostmanFileHelper:
         try:
             json_file = open(file_name, mode="r", newline="\n")
             json_data = json.load(json_file)
+            ds_indicator.safe_reset(PostmanFileHelper.safe_read_json_decode.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
         except IOError:
             log.error("Could not open file: '{}'. Exception traceback: ".format(file_name), exc_info=True)
+            ds_indicator.safe_indicate(PostmanFileHelper.safe_read_json_decode.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
         except json.JSONDecodeError:
             log.error("Could not parse data from file: '{}'. Exception traceback:".format(file_name), exc_info=True)
+            ds_indicator.safe_indicate(PostmanFileHelper.safe_read_json_decode.__qualname__, DeviceStatus.HIGH_SEVERITY_MALFUNCTION)
 
         if json_file is not None:
             json_file.close()

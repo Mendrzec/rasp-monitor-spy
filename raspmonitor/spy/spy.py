@@ -17,11 +17,11 @@
 # once a minute collected stats are send to server (REST API)
 
 from spy.MFRC522 import MFRC522
-from spy.settings import MACHINE_ON_IN, CYCLES_COUNTER_IN, CYCLES_COUNTER_LATCH_IN, CARD_IN_LED_OUT, \
-    CYCLES_COUNTING_LED_OUT, LOG_LOGGER_NAME, IDENTIFICATION_PORT
+from spy.settings import MACHINE_ON_IN, CYCLES_COUNTER_IN, CYCLES_COUNTER_LATCH_IN, DEVICE_STATUS_LED_OUT, \
+    CARD_CYCLES_STATUS_LED_OUT, LOG_LOGGER_NAME, IDENTIFICATION_PORT
 from spy.postman import Postman
 from spy.stat import Stat, Event
-from spy.utils import parse_card_id, get_input_state
+from spy.utils import parse_card_id, get_input_state, DeviceStatusIndicator
 
 from http.server import SimpleHTTPRequestHandler
 
@@ -68,10 +68,12 @@ class Spy:
         # Sets up simple http server with port 30330
         # It may help to identify if service is running and to find available raspomnitors in a network
         # In the future may be useful to change to show things or edit config through web browser
-        self.http_identification_server = socketserver.TCPServer(("", IDENTIFICATION_PORT), SimpleHTTPRequestHandler)
+        self._http_identification_server = socketserver.TCPServer(("", IDENTIFICATION_PORT), SimpleHTTPRequestHandler)
 
         self._initialize_gpio()
         self._initialize_stop_strategy()
+
+        self.device_status_indicator = DeviceStatusIndicator()
 
     def _initialize_gpio(self):
         GPIO.setmode(GPIO.BOARD)
@@ -81,10 +83,12 @@ class Spy:
         GPIO.setup(CYCLES_COUNTER_IN, GPIO.IN)
         GPIO.setup(CYCLES_COUNTER_LATCH_IN, GPIO.IN)
 
-        GPIO.setup(CYCLES_COUNTING_LED_OUT, GPIO.OUT)
-        GPIO.output(CYCLES_COUNTING_LED_OUT, GPIO.LOW)
+        GPIO.setup(CARD_CYCLES_STATUS_LED_OUT, GPIO.OUT)
+        GPIO.output(CARD_CYCLES_STATUS_LED_OUT, GPIO.LOW)
+        GPIO.setup(DEVICE_STATUS_LED_OUT, GPIO.OUT)
+        GPIO.output(DEVICE_STATUS_LED_OUT, GPIO.HIGH)
 
-        GPIO.add_event_detect(CYCLES_COUNTER_IN, GPIO.FALLING, callback=self._machine_cycles_counter_callback,
+        GPIO.add_event_detect(CYCLES_COUNTER_IN, GPIO.BOTH, callback=self._machine_cycles_counter_callback,
                               bouncetime=Spy.CYCLES_IN_BOUNCE_TIME)
 
     def _initialize_stop_strategy(self):
@@ -98,13 +102,14 @@ class Spy:
 
         self._should_fast_loop = False
         self._should_slow_loop = False
-        self.http_identification_server.shutdown()
-
-        GPIO.cleanup()
+        self._http_identification_server.shutdown()
+        self.device_status_indicator.should_indicate_status_loop = False
 
     def _machine_cycles_counter_callback(self, channel):
         time.sleep(Spy.CYCLES_IN_BOUNCE_TIME/1000.0)
         if get_input_state(CYCLES_COUNTER_IN):
+            if self._stat.card_id != Stat.CARD_ID_NONE:
+                GPIO.output(CARD_CYCLES_STATUS_LED_OUT, GPIO.LOW)
             self._cycles_count_lock.acquire()
             self._cycles_count += 1
             if get_input_state(CYCLES_COUNTER_LATCH_IN):
@@ -112,6 +117,9 @@ class Spy:
             log.debug("Captured cycle event. Cycles count: {}. Latched cycles count: {}"
                       .format(self._cycles_count, self._cycles_count_latch))
             self._cycles_count_lock.release()
+        else:
+            if self._stat.card_id != Stat.CARD_ID_NONE:
+                GPIO.output(CARD_CYCLES_STATUS_LED_OUT, GPIO.HIGH)
 
     def _add_events_bundle(self):
         self._stat.add_event(Event.TYPE_MACHINE_ON_OFF, self._machine_on_off)
@@ -159,18 +167,20 @@ class Spy:
             if status != MFRC522.MI_OK:  # card not found
                 if ((self._get_current_time() - card_read_time_stamp) > Spy.CARD_TIME_OUT
                         and self._stat.card_id != Stat.CARD_ID_NONE):
-                    log.debug("Card {} timeouted".format(self._stat.card_id))
+                    log.info("Card {} timeouted".format(self._stat.card_id))
+                    GPIO.output(CARD_CYCLES_STATUS_LED_OUT, GPIO.LOW)  # indicate that card has been read
                     self._fresh_stat(Stat.CARD_ID_NONE)
                 continue
 
             status, uid = self._mifare.MFRC522_Anticoll()
             if status != MFRC522.MI_OK:  # could not retrieve uid -> continue
                 continue
-            parsed_uid = parse_card_id(uid)
 
+            parsed_uid = parse_card_id(uid)
             card_read_time_stamp = self._get_current_time()
             if parsed_uid != self._stat.card_id:  # card id has changed
-                log.debug("Read new card {}".format(parsed_uid))
+                log.info("Read new card {}".format(parsed_uid))
+                GPIO.output(CARD_CYCLES_STATUS_LED_OUT, GPIO.HIGH)  # indicate that card has been read
                 self._fresh_stat(parsed_uid)
 
     def _slow_loop(self):
@@ -217,14 +227,19 @@ class Spy:
             time.sleep(Spy.SLOW_LOOP_INTERVAL)
 
     def launch(self):
+        device_status_indicator_thread = threading.Thread(target=self.device_status_indicator.indicate_status)
         fast_loop_thread = threading.Thread(target=self._fast_loop)
         slow_loop_thread = threading.Thread(target=self._slow_loop)
-        http_identification_server_thread = threading.Thread(target=self.http_identification_server.serve_forever)
+        http_identification_server_thread = threading.Thread(target=self._http_identification_server.serve_forever)
 
+        device_status_indicator_thread.start()
         fast_loop_thread.start()
         slow_loop_thread.start()
         http_identification_server_thread.start()
 
+        device_status_indicator_thread.join()
         fast_loop_thread.join()
         slow_loop_thread.join()
         http_identification_server_thread.join()
+
+        GPIO.cleanup()
