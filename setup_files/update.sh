@@ -33,7 +33,7 @@ echo "### Updating repository to the latest tag"
 cd ${RASPMONITOR_REPOSITORY_PATH}
 git pull https://Mendrzec:${AUTH_TOKEN}@github.com/Mendrzec/rasp-monitor-spy.git
 git checkout -- .
-LATEST_TAG=$(git describe --tags)
+LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
 git checkout ${LATEST_TAG}
 
 echo "### Installing latest version of raspmonitor"
