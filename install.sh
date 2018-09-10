@@ -40,7 +40,7 @@ if [ ${UPDATE_MODE} -eq 0 ]; then
     echo "### Enabling SSH..."
     systemctl enable ssh.service
     systemctl start ssh.service
-    systemctl status ssh.service
+    systemctl status ssh.service --no-pager
 
     # enable spi
     echo "### Enabling SPI..."
@@ -103,7 +103,7 @@ sed -i "s/\${PYTHON}/${PYTHON}/" ${ETC_SERVICE_FILE}
 echo "### Starting raspmonitor..."
 systemctl enable raspmonitor.service
 systemctl daemon-reload
-systemctl status raspmonitor.service
+systemctl status raspmonitor.service --no-pager
 
 echo "### Rebooting..."
 shutdown -r now
