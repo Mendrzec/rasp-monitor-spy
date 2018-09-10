@@ -19,34 +19,41 @@ echo "### RASPMONITOR INSTALLER ###"
 echo "#############################"
 echo
 
-# collect required input data
-echo "Please enter machine name:"
-read NEW_HOSTNAME
+UPDATE_MODE=0
+if [ "${1}" = "--update" ]; then
+    UPDATE_MODE=1
+fi
 
-echo "Please enter server ip and port (format http://ip:port/)"
-read SERVER_URL
-while [ -z "$(echo ${SERVER_URL} | grep ^http://.*:.*/$)" ]; do
-    echo "Entered url: ${SERVER_URL} has wrong format. Try again."
+if [ ${UPDATE_MODE} -eq 0 ]; then
+    # collect required input data
+    echo "Please enter machine name:"
+    read NEW_HOSTNAME
+
+    echo "Please enter server ip and port (format http://ip:port/)"
     read SERVER_URL
-done
+    while [ -z "$(echo ${SERVER_URL} | grep ^http://.*:.*/$)" ]; do
+        echo "Entered url: ${SERVER_URL} has wrong format. Try again."
+        read SERVER_URL
+    done
 
-# enable ssh
-echo "### Enabling SSH..."
-systemctl enable ssh.service
-systemctl start ssh.service
-systemctl status ssh.service
+    # enable ssh
+    echo "### Enabling SSH..."
+    systemctl enable ssh.service
+    systemctl start ssh.service
+    systemctl status ssh.service
 
-# enable spi
-echo "### Enabling SPI..."
-sed -i "s/#dtparam=spi=on/dtparam=spi=on/" /boot/config.txt
+    # enable spi
+    echo "### Enabling SPI..."
+    sed -i "s/#dtparam=spi=on/dtparam=spi=on/" /boot/config.txt
 
-#Localtime
-echo "### Setting timezone..."
-sudo cp /usr/share/zoneinfo/Poland /etc/localtime
+    #Localtime
+    echo "### Setting timezone..."
+    sudo cp /usr/share/zoneinfo/Poland /etc/localtime
 
-# dependencies
-apt-get update -y
-apt-get install python3-dev python3-pip python3-rpi.gpio -y
+    # dependencies
+    apt-get update -y
+    apt-get install python3-dev python3-pip python3-rpi.gpio -y
+fi
 
 # requirements
 echo "### Looking for Python version..."
@@ -54,20 +61,22 @@ PYTHON_AND_PIP_COMMAND=$(getPythonAndPipCommand)
 PYTHON=$(cut -d ' ' -f 1 <<< ${PYTHON_AND_PIP_COMMAND})
 PIP=$(cut -d ' ' -f 2 <<< ${PYTHON_AND_PIP_COMMAND})
 
-echo "### Installing SpiPy library..."
-installSpiPy
-${PIP} install psutil
-${PIP} install requests
+if [ ${UPDATE_MODE} -eq 0 ]; then
+    echo "### Installing SpiPy library..."
+    installSpiPy
+    ${PIP} install psutil
+    ${PIP} install requests
 
-# set host name
-echo "### Setting new hostname..."
-sed -i "s/raspberrypi/${NEW_HOSTNAME}/" /etc/hostname
-sed -i "s/raspberrypi/${NEW_HOSTNAME}/" /etc/hosts
-/etc/init.d/hostname.sh start
+    # set host name
+    echo "### Setting new hostname..."
+    sed -i "s/raspberrypi/${NEW_HOSTNAME}/" /etc/hostname
+    sed -i "s/raspberrypi/${NEW_HOSTNAME}/" /etc/hosts
+    /etc/init.d/hostname.sh start
 
-# edit settings.py to set server url
-SERVER_URL_COMP=$(echo ${SERVER_URL} | sed "s#/#\\\\/#g")
-sed -i "s/SERVER_URL.*/SERVER_URL = \"${SERVER_URL_COMP}\"/" raspmonitor/spy/settings.py
+    # edit settings.py to set server url
+    SERVER_URL_COMP=$(echo ${SERVER_URL} | sed "s#/#\\\\/#g")
+    sed -i "s/SERVER_URL.*/SERVER_URL = \"${SERVER_URL_COMP}\"/" raspmonitor/spy/settings.py
+fi
 
 # make dirs and copy files
 echo "### Copying data..."
@@ -82,6 +91,10 @@ chown -R pi:pi ${RASP_ROOT_DIR}
 # uninstall.sh -> /opt/raspmonitor
 cp -rv "setup_files/uninstall.sh" ${RASP_ROOT_DIR}
 chmod 775 "${RASP_ROOT_DIR}/uninstall.sh"
+
+# update.sh -> /opt/raspmonitor
+cp -rv "setup_files/update.sh" ${RASP_ROOT_DIR}
+chmod 775 "${RASP_ROOT_DIR}/update.sh"
 
 # autostart
 cp -v "setup_files/raspmonitor.service" /etc/systemd/system/
