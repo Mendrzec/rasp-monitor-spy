@@ -105,5 +105,10 @@ systemctl enable raspmonitor.service
 systemctl daemon-reload
 systemctl status raspmonitor.service --no-pager
 
-echo "### Rebooting..."
-shutdown -r now
+if [ ${UPDATE_MODE} -eq 0 ]; then
+    echo "### Rebooting..."
+    shutdown -r now
+else
+    echo "### Starting raspmonitor service"
+    systemctl start raspmonitor.service
+fi
