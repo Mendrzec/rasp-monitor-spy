@@ -8,7 +8,8 @@ import threading
 
 
 def parse_card_id(card_id: []) -> str:
-    return str(card_id[0]) + "." + str(card_id[1]) + "." + str(card_id[2]) + "." + str(card_id[3])
+    hex_id = hex(card_id[3])[2:].zfill(2) + hex(card_id[2])[2:].zfill(2) + hex(card_id[1])[2:].zfill(2) + hex(card_id[0])[2:].zfill(2)
+    return str(int(hex_id, base=16)).zfill(10)
 
 
 def get_input_state(input_: int) -> int:
